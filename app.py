@@ -40,9 +40,9 @@ student_need = st.selectbox(
 ]
 )
 text = st.text_area(
-    "📄 Вставьте текст из учебника, статьи или конспекта:",
+    "Вставьте учебный материал:",
     height=200,
-    placeholder="Например: вставьте параграф из учебника, научной статьи или конспекта..."
+    placeholder="Вставьте сюда текст из учебника, задания или урока..."
 )
 
 support = st.selectbox(
@@ -100,57 +100,58 @@ if  st.button("Адаптировать материал"):
     elif not HF_TOKEN:
         st.error("Токен Hugging Face не найден.")
     else:
+        action_instructions = {
+            "Упростить текст": """
+Rewrite the ENTIRE text in simpler, student-friendly language.
+Keep all important facts and academic meaning.
+Use short sentences and short paragraphs.
+If a technical term is necessary, explain it briefly IN THE SAME SENTENCE where it appears.
+Do NOT create a section called 'Сложные слова'.
+Do NOT add a glossary, definitions list, summary, or audio instructions.
+Do NOT remove important information just to make the text shorter.
+""",
+            "Структурировать текст": """
+Keep the original information and meaning.
+Organize it with clear headings, short sections, numbered steps, or bullet points where useful.
+Do NOT create a section called 'Сложные слова'.
+Do NOT summarize the material.
+Do NOT add a glossary or extra explanations that were not requested.
+""",
+            "Объяснить сложные слова": """
+Keep the original text unchanged as much as possible.
+Then add a section called 'Сложные слова' and explain only the difficult terms that actually appear in the text.
+Do NOT rewrite or summarize the whole material.
+""",
+            "Создать краткое содержание": """
+Create ONLY a concise summary of the original material.
+Keep the key ideas, facts, and important relationships.
+Do NOT rewrite the entire text.
+Do NOT create a section called 'Сложные слова'.
+Do NOT explain individual terms.
+Do NOT add a glossary, examples, or unrelated information.
+"""
+        }
+
         prompt = f"""
-You are an educational assistant specializing in adapting educational materials for inclusive education.
+You are an educational assistant for inclusive education.
 
-Your task is NOT to summarize unless the user specifically asks for a summary.
+Learner accessibility need: {student_need}
+Student request: {support}
 
-Always adapt the text according to the selected educational need.
-
-Rules:
-- Use simple and clear language.
-- Keep all important facts.
-- Do not invent new information.
-- Split long paragraphs into short ones.
-- Use bullet points whenever appropriate.
-- Explain difficult words in simple language.
-- Make the material easy for students to understand.
-
-Learner accessibility need:
-{student_need}
-
-Student request:
-{support}
-
-Special adaptation instructions:
+Accessibility instructions:
 {need_instructions[student_need]}
 
-Original text:
-{text}
-        
-Adapt the learning material according to the accessibility instructions above
-and the student's request.
+ACTION-SPECIFIC INSTRUCTIONS:
+{action_instructions[support]}
 
 Important rules:
-- Always answer in the SAME language as the original text.
-- Never translate the text unless the student explicitly asks for translation.
+- Perform ONLY the selected action: {support}.
+- Do not perform other actions just because they might be useful.
 - Follow ONLY the accessibility instructions for the selected learner need.
 - Do not mention disabilities or diagnoses unless necessary.
-- Do not say that the material was adapted for ADHD, dyslexia, visual impairment, or hearing impairment.
-- Keep all important academic information accurate.
+- Keep important academic information accurate.
 - Do not invent information that is not supported by the original material.
-- Do not repeat sentences or duplicate information.
-- Preserve the original language of the learning material.
-- Do not translate the learning material unless the student explicitly requests translation.
-- Do not summarize the text unless the student explicitly requests a summary.
-- Do not use phrases like "Summary", "Brief summary", or "Here is a summary" unless requested.
-- Do not rewrite or simplify the entire text.
-- Keep the original text unchanged whenever possible.
-- Only explain difficult words and phrases.
-- After the text, create a section called "Сложные слова".
-- Explain each difficult word or phrase in simple language.
-- Do not summarize the text.
-- Return only the adapted learning material.
+- Return only the final result.
 
 Learning material:
 {text}
@@ -167,13 +168,14 @@ Learning material:
                     messages=[
                         {"role": "user", "content": prompt}
                     ],
-                    max_tokens=700
+                    max_tokens=1200
                 )
 
 
 
             result = response.choices[0].message.content
             st.session_state["result"] = result
+            st.session_state["audio_ready"] = False
         
             
         except Exception as e:
@@ -184,7 +186,6 @@ if "result" in st.session_state:
 
     st.divider()
     st.subheader("✨ Адаптированный материал")
-    st.info("Материал адаптирован в соответствии с выбранным режимом обучения.")
     st.markdown(result)
 
     if student_need != "Нарушение слуха":
@@ -196,7 +197,7 @@ if "result" in st.session_state:
                     asyncio.run(generate_audio(clean_text))
                     st.session_state["audio_ready"] = True
             except Exception:
-                st.error("Audio could not be generated.Please try again.")
+                st.error("Audio could not be generated. Please try again.")
 
-            if st.session_state.get("audio_ready"):
-               st.audio("audio.mp3")
+        if st.session_state.get("audio_ready"):
+            st.audio("audio.mp3")
